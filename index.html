@@ -248,9 +248,90 @@
     .lyr-line { font-size:14px; padding:6px; }
     .lyr-line.active { font-size:16px; }
   }
+
+  /* ---------- 登录/注册门控 ---------- */
+  #authGate { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg,var(--bg2) 0%,var(--bg1) 55%,#d7e9f7 100%); padding:20px; }
+  #authGate.hide { display:none; }
+  .auth-card { width:100%; max-width:380px; background:var(--card); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.6); border-radius:22px; padding:28px 24px; box-shadow:0 20px 50px rgba(40,80,120,.18); }
+  .auth-card .logo { font-size:26px; font-weight:800; text-align:center; margin-bottom:4px; }
+  .auth-card .logo span { color:var(--accent); }
+  .auth-card .sub2 { text-align:center; color:var(--sub); font-size:13px; margin-bottom:18px; }
+  .auth-tabs { display:flex; gap:6px; background:#eaf2f9; padding:4px; border-radius:12px; margin-bottom:18px; }
+  .auth-tabs button { flex:1; padding:9px; border-radius:9px; font-size:14px; color:var(--sub); }
+  .auth-tabs button.active { background:#fff; color:var(--accent); font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+  .auth-card label { font-size:12px; color:var(--sub); display:block; margin:10px 0 4px; }
+  .auth-card input { width:100%; border:1px solid #dce6ef; border-radius:10px; padding:11px 12px; font-size:14px; background:#f8fbfd; outline:none; }
+  .auth-card input:focus { border-color:var(--accent); }
+  .auth-card .btn { width:100%; margin-top:16px; background:linear-gradient(90deg,var(--accent),#2f6fa8); color:#fff; border-radius:12px; padding:12px; font-size:15px; font-weight:700; }
+  .auth-card .btn:active { transform:scale(.98); }
+  .auth-msg { font-size:13px; margin-top:10px; min-height:18px; text-align:center; }
+  .auth-msg.err { color:#e0533d; }
+  .auth-msg.ok { color:#2e9e6b; }
+  .auth-hint { font-size:12px; color:var(--sub); margin-top:8px; line-height:1.5; }
+  .auth-num-box { background:#eaf6ef; border:1px solid #bfe6cf; border-radius:12px; padding:14px; text-align:center; margin-top:8px; }
+  .auth-num-box b { font-size:24px; color:#1f8a57; letter-spacing:3px; }
+
+  /* 管理员面板 */
+  .admin-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .admin-table th,.admin-table td { padding:8px 10px; text-align:left; border-bottom:1px solid #eef3f8; }
+  .admin-table th { color:var(--sub); font-weight:600; }
+  .admin-table tr.me { background:#fff7ec; }
+  .admin-actions button { margin-right:6px; font-size:12px; padding:4px 10px; border-radius:8px; background:#eaf2f9; color:var(--accent); }
+  .admin-actions button.del { background:#fdecea; color:#e0533d; }
+  .admin-actions button.adm { background:#fff3e0; color:#e8874b; }
+  .admin-stat { font-size:13px; color:var(--sub); margin-bottom:10px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+<!-- 登录 / 注册 / 找回密码 门控 -->
+<div id="authGate" class="hide">
+  <div class="auth-card">
+    <div class="logo">余<span>音</span></div>
+    <div class="sub2">音频记忆平台</div>
+    <div class="auth-tabs">
+      <button id="tabLogin" class="active" onclick="authTab('login')">登录</button>
+      <button id="tabReg" onclick="authTab('reg')">注册</button>
+      <button id="tabReset" onclick="authTab('reset')">找回密码</button>
+    </div>
+
+    <div id="pLogin">
+      <label>用户号 或 用户名</label>
+      <input id="loginAccount" placeholder="6 位用户号，或用户名" autocomplete="username">
+      <label>密码</label>
+      <input id="loginPwd" type="password" placeholder="密码" autocomplete="current-password">
+      <button class="btn" onclick="doLogin()">登 录</button>
+    </div>
+
+    <div id="pReg" style="display:none">
+      <label>用户名</label>
+      <input id="regUser" placeholder="给自己起个名字">
+      <label>密码（至少 6 位）</label>
+      <input id="regPwd" type="password" placeholder="设置密码">
+      <label>确认密码</label>
+      <input id="regPwd2" type="password" placeholder="再次输入密码">
+      <label>不会忘记的数字（用于找回密码）</label>
+      <input id="regRec" placeholder="例如生日 19990101">
+      <button class="btn" onclick="doRegister()">注 册</button>
+      <div class="auth-hint">注册后系统自动分配一个 6 位用户号，请牢记；它和"不会忘记的数字"都可用于找回密码。首个注册账号自动成为管理员。</div>
+    </div>
+
+    <div id="pReset" style="display:none">
+      <label>用户号</label>
+      <input id="resetNum" placeholder="6 位用户号">
+      <label>不会忘记的数字</label>
+      <input id="resetRec" placeholder="注册时填写的数字">
+      <label>新密码（至少 6 位）</label>
+      <input id="resetPwd" type="password" placeholder="设置新密码">
+      <button class="btn" onclick="doReset()">重 置 密 码</button>
+    </div>
+
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
 
 <div class="stamp-banner" id="stampBanner">
   🎯 逐句标记模式：播放到对应句子时点击歌词行打时间戳
@@ -263,6 +344,8 @@
     <div class="sub">音频记忆平台 · 上传 / 循环 / 歌词跟唱</div>
   </div>
   <button class="sync-btn" id="syncBtn" onclick="openSync()">☁ 云同步</button>
+  <span id="userBadge" style="display:none;font-size:13px;color:var(--sub);margin-left:6px"></span>
+  <button id="adminOpenBtn" class="sync-btn" style="display:none;background:#e8874b" onclick="openAdmin()">⚙ 管理</button>
 </div>
 
 <div class="layout">
@@ -405,6 +488,23 @@
   <div class="modal" style="max-width:400px">
     <div class="modal-head"><h4>播放列表</h4><button onclick="closeModal('plModal')">✕</button></div>
     <div class="modal-body" id="plList" style="padding-bottom:20px"></div>
+  </div>
+</div>
+
+<!-- 管理员面板 -->
+<div class="modal-mask" id="adminModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h4>用户管理（管理员）</h4><button onclick="closeModal('adminModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="adminFilter" placeholder="按用户名或用户号筛选" style="flex:1;border:1px solid #dce6ef;border-radius:10px;padding:9px 12px;font-size:14px;background:#f8fbfd;outline:none" oninput="loadAdminUsers()">
+        <button class="btn ghost" onclick="loadAdminUsers()">筛选</button>
+      </div>
+      <div class="admin-stat" id="adminStat"></div>
+      <div style="max-height:46vh;overflow:auto">
+        <table class="admin-table" id="adminTable"></table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1255,6 +1355,158 @@ function applyAuto(){ if(syncCfg){ syncCfg.auto=document.getElementById('syncAut
 
 window.addEventListener('load', async()=>{ if(syncEnabled()){ try{ await pullLibrary(); }catch(e){} } });
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden && syncDirty) pushLibrary(); });
+
+/* ================= Supabase 账号系统 ================= */
+/* ↓↓↓ 把下面的两个值替换成你自己的 Supabase 项目信息（见说明文档）↓↓↓ */
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+let sb = null, curUser = null, curProfile = null;
+try { if(window.supabase && SUPABASE_URL.indexOf('YOUR_')!==0){ sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } } catch(e){ console.warn('supabase init skip', e); }
+const AUTH_OFF = !sb;
+
+function authTab(t){
+  ['login','reg','reset'].forEach(x=>{
+    const cap = x.charAt(0).toUpperCase()+x.slice(1);
+    document.getElementById('p'+cap).style.display = (x===t?'block':'none');
+    document.getElementById('tab'+cap).classList.toggle('active', x===t);
+  });
+  setAuthMsg('');
+}
+function setAuthMsg(m, ok){
+  const el=document.getElementById('authMsg');
+  el.textContent=m||'';
+  el.className='auth-msg'+(ok?' ok':'')+(m&&!ok?' err':'');
+}
+function synthEmail(){ return 'u_'+(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random()))+'@yuyin.local'; }
+
+async function doRegister(){
+  if(AUTH_OFF){ setAuthMsg('未配置 Supabase，无法注册（见说明）'); return; }
+  const user=document.getElementById('regUser').value.trim();
+  const pwd=document.getElementById('regPwd').value;
+  const pwd2=document.getElementById('regPwd2').value;
+  const rec=document.getElementById('regRec').value.trim();
+if(!user){ setAuthMsg('请填写用户名'); return; }
+  if(pwd.length<6){ setAuthMsg('密码至少 6 位'); return; }
+  if(pwd!==pwd2){ setAuthMsg('两次密码不一致'); return; }
+  if(!rec){ setAuthMsg('请填写"不会忘记的数字"'); return; }
+  setAuthMsg('正在注册…');
+  const { data, error } = await sb.auth.signUp({
+    email: synthEmail(),
+    password: pwd,
+    options: { data: { username: user, recovery_number: rec } }
+  });
+  if(error){ setAuthMsg('注册失败：'+error.message); return; }
+  const id = data.user && data.user.id;
+  let num='';
+  if(id){ const p=await sb.from('profiles').select('user_number').eq('id',id).single(); if(p.data) num=p.data.user_number; }
+  if(data.session){ setAuthMsg('注册成功！你的用户号 '+num+'，正在进入…', true); setTimeout(()=>onLoggedIn(data.session), 1000); }
+  else { setAuthMsg('注册成功！用户号 '+num+'，请登录（若开启邮箱验证请先验证）', true); setTimeout(()=>authTab('login'), 1500); }
+}
+async function doLogin(){
+  if(AUTH_OFF){ setAuthMsg('未配置 Supabase，无法登录（见说明）'); return; }
+  const acc=document.getElementById('loginAccount').value.trim();
+  const pwd=document.getElementById('loginPwd').value;
+  if(!acc||!pwd){ setAuthMsg('请填写账号和密码'); return; }
+  setAuthMsg('正在登录…');
+  let email=null;
+  try {
+    if(/^\d{6}$/.test(acc)){ const r=await sb.rpc('lookup_email_by_number',{pnum:acc}); email=r.data; }
+    else { const r=await sb.rpc('lookup_email_by_username',{uname:acc}); email=r.data; }
+  } catch(e){ setAuthMsg('查询账号失败'); return; }
+  if(!email){ setAuthMsg('账号不存在'); return; }
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
+  if(error){ setAuthMsg('登录失败：'+(error.message||'账号或密码错误')); return; }
+  onLoggedIn(data.session);
+}
+async function doReset(){
+  if(AUTH_OFF){ setAuthMsg('未配置 Supabase'); return; }
+  const num=document.getElementById('resetNum').value.trim();
+  const rec=document.getElementById('resetRec').value.trim();
+  const pwd=document.getElementById('resetPwd').value;
+  if(!/^\d{6}$/.test(num)){ setAuthMsg('请填写 6 位用户号'); return; }
+  if(!rec){ setAuthMsg('请填写不会忘记的数字'); return; }
+  if(pwd.length<6){ setAuthMsg('新密码至少 6 位'); return; }
+  setAuthMsg('正在重置…');
+  const { error } = await sb.rpc('reset_password',{p_number:num,p_recovery:rec,p_newpw:pwd});
+  if(error){ setAuthMsg(error.message && error.message.indexOf('INVALID')>=0 ? '用户号或找回数字不匹配' : '重置失败：'+error.message); return; }
+  setAuthMsg('密码已重置，请用新密码登录', true);
+  setTimeout(()=>authTab('login'), 1200);
+}
+async function onLoggedIn(session){
+  if(!session){ document.getElementById('authGate').classList.remove('hide'); return; }
+  let u = session.user;
+  if(!u){ const g=await sb.auth.getUser(); u=g.data.user; }
+  curUser = u;
+  const p=await sb.from('profiles').select('user_number,username,is_admin').eq('id',u.id).single();
+  curProfile = p.data || {user_number:'?',username:u.email||'',is_admin:false};
+  document.getElementById('authGate').classList.add('hide');
+  const badge=document.getElementById('userBadge');
+  badge.style.display=''; badge.textContent='👤 '+curProfile.username+' · '+curProfile.user_number;
+  if(curProfile.is_admin){ document.getElementById('adminOpenBtn').style.display=''; }
+  toast('欢迎，'+curProfile.username);
+}
+function openAdmin(){ if(curProfile&&curProfile.is_admin){ loadAdminUsers(); document.getElementById('adminModal').classList.add('show'); } }
+async function loadAdminUsers(){
+  const q=document.getElementById('adminFilter').value.trim();
+  const { data, error } = await sb.rpc('admin_list_users');
+  if(error){ document.getElementById('adminStat').textContent='加载失败：'+error.message; return; }
+  let list=data||[];
+  if(q){ list=list.filter(u=>(u.username||'').indexOf(q)>=0||(u.user_number||'').indexOf(q)>=0); }
+  document.getElementById('adminStat').textContent='共 '+list.length+' 位用户'+(curProfile.is_admin?'（你是管理员）':'');
+  const tb=document.getElementById('adminTable');
+  tb.innerHTML='<tr><th>用户号</th><th>用户名</th><th>注册时间</th><th>管理员</th><th>操作</th></tr>'+
+    list.map(u=>{
+      const me=(u.id===curUser.id);
+      const t=new Date(u.created_at).toLocaleString('zh-CN');
+      return `<tr class="${me?'me':''}">
+        <td>${u.user_number}</td>
+        <td>${esc(u.username)}${me?'（我）':''}</td>
+        <td>${t}</td>
+        <td>${u.is_admin?'是':'否'}</td>
+        <td class="admin-actions">
+          <button onclick="adminEdit('${u.id}')">编辑</button>
+          <button class="adm" onclick="adminToggleAdmin('${u.id}',${u.is_admin})">${u.is_admin?'取消管理':'设为管理'}</button>
+          ${me?'':'<button class="del" onclick="adminDel(\''+u.id+'\')">注销</button>'}
+        </td></tr>`;
+    }).join('');
+}
+async function adminEdit(id){
+  const username=prompt('修改用户名（留空则不修改）：');
+  if(username===null) return;
+  const np=prompt('重置密码（留空则不修改，至少6位）：');
+  if(np!==null && np.trim()!=='' && np.trim().length<6){ alert('密码至少6位'); return; }
+  const rec=prompt('修改找回数字（留空则不修改）：');
+  const { error } = await sb.rpc('admin_update_user',{
+    p_id:id,
+    p_username: (username&&username.trim())?username.trim():null,
+    p_password: (np&&np.trim())?np.trim():null,
+    p_recovery: (rec&&rec.trim())?rec.trim():null
+  });
+  if(error){ alert('修改失败：'+error.message); return; }
+  toast('已保存'); loadAdminUsers();
+}
+async function adminToggleAdmin(id, cur){
+  const { error } = await sb.rpc('admin_update_user',{ p_id:id, p_is_admin:!cur });
+  if(error){ alert('操作失败：'+error.message); return; }
+  toast('已更新管理员状态'); loadAdminUsers();
+}
+async function adminDel(id){
+  if(!confirm('确定注销该用户？其账号与资料将被永久删除，不可恢复。')) return;
+  const { error } = await sb.rpc('admin_delete_user',{p_id:id});
+  if(error){ alert('注销失败：'+error.message); return; }
+  toast('已注销'); loadAdminUsers();
+}
+
+/* 启动：未配置则直接使用（无账号系统）；已配置则检查登录态 */
+if(AUTH_OFF){
+  document.getElementById('authGate').classList.add('hide');
+} else {
+  sb.auth.getSession().then(({data})=>{
+    if(data.session) onLoggedIn(data.session);
+    else document.getElementById('authGate').classList.remove('hide');
+  }).catch(()=>document.getElementById('authGate').classList.remove('hide'));
+  sb.auth.onAuthStateChange((_e,s)=>{ if(s && s.user) onLoggedIn(s); });
+}
 </script>
 <script>
 /* 注册 Service Worker，使网页可"安装"到手机/电脑桌面并支持离线 */
