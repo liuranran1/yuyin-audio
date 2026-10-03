@@ -345,6 +345,7 @@
   </div>
   <button class="sync-btn" id="syncBtn" onclick="openSync()">☁ 云同步</button>
   <span id="userBadge" style="display:none;font-size:13px;color:var(--sub);margin-left:6px"></span>
+  <button id="logoutBtn" class="sync-btn" style="display:none;background:#b9483f" onclick="doLogout()">退出</button>
   <button id="adminOpenBtn" class="sync-btn" style="display:none;background:#e8874b" onclick="openAdmin()">⚙ 管理</button>
 </div>
 
@@ -1337,7 +1338,7 @@ async function deployToPages(){
 }
 
 function setSyncLog(m){ const el=document.getElementById('syncLog'); if(el) el.textContent=m; }
-function markDirty(){ if(!syncCfg||!syncCfg.auto) return; syncDirty=true; clearTimeout(syncTimer); syncTimer=setTimeout(()=>{ if(syncDirty) pushLibrary(); }, 2500); }
+function markDirty(){ if(syncCfg&&syncCfg.auto){ syncDirty=true; clearTimeout(syncTimer); syncTimer=setTimeout(()=>{ if(syncDirty) pushLibrary(); }, 2500); } if(sb && curUser){ clearTimeout(sbLibTimer); sbLibTimer=setTimeout(saveSupabaseLibrary, 2500); } }
 function openSync(){
   if(syncCfg){ document.getElementById('syncToken').value=syncCfg.token||''; document.getElementById('syncRepo').value=syncCfg.repo||'yuyin-data'; document.getElementById('syncAuto').checked=!!(syncCfg&&syncCfg.auto); document.getElementById('syncBtn').classList.add('sync-on'); document.getElementById('syncBtn').textContent='☁ 已同步'; if(syncCfg.owner) setSyncLog('已连接：'+syncCfg.owner+'/'+syncCfg.repo); }
   document.getElementById('syncModal').classList.add('show');
@@ -1361,6 +1362,7 @@ document.addEventListener('visibilitychange', ()=>{ if(document.hidden && syncDi
 const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 let sb = null, curUser = null, curProfile = null;
+let sbLibTimer = null, sbLibBusy = false;
 try { if(window.supabase && SUPABASE_URL.indexOf('YOUR_')!==0){ sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } } catch(e){ console.warn('supabase init skip', e); }
 const AUTH_OFF = !sb;
 
@@ -1442,8 +1444,10 @@ async function onLoggedIn(session){
   document.getElementById('authGate').classList.add('hide');
   const badge=document.getElementById('userBadge');
   badge.style.display=''; badge.textContent='👤 '+curProfile.username+' · '+curProfile.user_number;
+  document.getElementById('logoutBtn').style.display='';
   if(curProfile.is_admin){ document.getElementById('adminOpenBtn').style.display=''; }
   toast('欢迎，'+curProfile.username);
+  await loadSupabaseLibrary();
 }
 function openAdmin(){ if(curProfile&&curProfile.is_admin){ loadAdminUsers(); document.getElementById('adminModal').classList.add('show'); } }
 async function loadAdminUsers(){
@@ -1495,6 +1499,43 @@ async function adminDel(id){
   const { error } = await sb.rpc('admin_delete_user',{p_id:id});
   if(error){ alert('注销失败：'+error.message); return; }
   toast('已注销'); loadAdminUsers();
+}
+
+/* ================= 按账号隔离的云端曲库 ================= */
+// 登录后从云端载入"这个账号"自己的曲库（替换本地），实现不同账户各自独立
+async function loadSupabaseLibrary(){
+  if(!sb || !curUser) return;
+  try{
+    const res = await sb.rpc('get_my_library');
+    const lib = (res && res.data) || null;
+    if(lib && (lib.groups || lib.tracks || lib.audios)){
+      await applyLibrary({ groups:lib.groups||[], tracks:lib.tracks||[], audios:lib.audios||[] });
+      toast('已从云端载入你的曲库');
+    }
+  }catch(e){ console.warn('载入云端曲库失败', e); }
+}
+// 把"这个账号"的曲库（分组/曲目/音频）保存到云端
+async function saveSupabaseLibrary(){
+  if(!sb || !curUser || sbLibBusy) return;
+  sbLibBusy = true;
+  try{
+    const lib = await buildLibraryBlob();
+    const { error } = await sb.rpc('save_my_library', {
+      p_data:  { groups: lib.groups, tracks: lib.tracks },
+      p_audio: lib.audios
+    });
+    if(error) console.warn('保存云端曲库失败', error.message);
+  }catch(e){ console.warn('保存云端曲库异常', e); }
+  finally{ sbLibBusy = false; }
+}
+async function doLogout(){
+  if(sb){ try{ await sb.auth.signOut(); }catch(e){} }
+  curUser=null; curProfile=null;
+  document.getElementById('userBadge').style.display='none';
+  document.getElementById('logoutBtn').style.display='none';
+  document.getElementById('adminOpenBtn').style.display='none';
+  document.getElementById('authGate').classList.remove('hide');
+  toast('已退出登录');
 }
 
 /* 启动：未配置则直接使用（无账号系统）；已配置则检查登录态 */
