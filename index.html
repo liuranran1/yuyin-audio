@@ -1526,6 +1526,8 @@ async function adminSaveEdit(){
   closeModal('adminEditModal'); toast('已保存'); loadAdminUsers();
 }
 async function adminToggleAdmin(id, cur){
+  if(curUser && id===curUser.id){ alert('不能取消自己的管理员身份'); return; }
+  if(cur && !confirm('确定取消该用户的管理员身份？')) return;
   const { error } = await sb.rpc('admin_update_user',{ p_id:id, p_is_admin:!cur });
   if(error){ alert('操作失败：'+error.message); return; }
   toast('已更新管理员状态'); loadAdminUsers();
