@@ -269,6 +269,11 @@
   .auth-msg { font-size:13px; margin-top:10px; min-height:18px; text-align:center; }
   .auth-msg.err { color:#e0533d; }
   .auth-msg.ok { color:#2e9e6b; }
+  .auth-guest { margin-top:18px; text-align:center; }
+  .guest-divider { display:flex; align-items:center; gap:10px; color:#9fb3c6; font-size:12px; margin:14px 0 10px; }
+  .guest-divider::before, .guest-divider::after { content:''; flex:1; height:1px; background:#e3edf5; }
+  .auth-guest .btn.ghost { width:100%; background:#f1f7fc; color:var(--accent); }
+  #guestLoginBtn { display:none; }
   .auth-hint { font-size:12px; color:var(--sub); margin-top:8px; line-height:1.5; }
   .auth-num-box { background:#eaf6ef; border:1px solid #bfe6cf; border-radius:12px; padding:14px; text-align:center; margin-top:8px; }
   .auth-num-box b { font-size:24px; color:#1f8a57; letter-spacing:3px; }
@@ -329,6 +334,12 @@
       <button class="btn" onclick="doReset()">重 置 密 码</button>
     </div>
 
+    <div class="auth-guest">
+      <div class="guest-divider"><span>或</span></div>
+      <button class="btn ghost" onclick="enterGuestMode()">游客本地使用（无需登录，数据仅存本机）</button>
+      <div class="auth-hint">游客模式下，音频与歌词只保存在当前设备浏览器，不联网、不同步；需要跨设备请先注册/登录。</div>
+    </div>
+
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
@@ -347,6 +358,7 @@
   <span id="userBadge" style="display:none;font-size:13px;color:var(--sub);margin-left:6px"></span>
   <button id="logoutBtn" class="sync-btn" style="display:none;background:#b9483f" onclick="doLogout()">退出</button>
   <button id="adminOpenBtn" class="sync-btn" style="display:none;background:#e8874b" onclick="openAdmin()">⚙ 管理</button>
+  <button id="guestLoginBtn" class="sync-btn" style="background:#3b7bb5" onclick="reopenGate()">登录账号</button>
 </div>
 
 <div class="layout">
@@ -1387,6 +1399,7 @@ document.addEventListener('visibilitychange', ()=>{ if(document.hidden && syncDi
 const SUPABASE_URL = 'https://lrkrdnxdvdzpfgtvmtau.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_cbu0O_JvhPCJfjwi6gck9Q_8ApbA1hI';
 let sb = null, curUser = null, curProfile = null;
+let guestMode = false;   // 游客本机模式：跳过登录，仅用本地 IndexedDB
 let sbLibTimer = null, sbLibBusy = false;
 try { if(window.supabase && SUPABASE_URL.indexOf('YOUR_')!==0){ sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } } catch(e){ console.warn('supabase init skip', e); }
 const AUTH_OFF = !sb;
@@ -1461,6 +1474,8 @@ async function doReset(){
 }
 async function onLoggedIn(session){
   if(!session){ document.getElementById('authGate').classList.remove('hide'); return; }
+  guestMode=false; localStorage.removeItem('yuyin_guest');
+  document.getElementById('guestLoginBtn').style.display='none';
   let u = session.user;
   if(!u){ const g=await sb.auth.getUser(); u=g.data.user; }
   curUser = u;
@@ -1473,6 +1488,23 @@ async function onLoggedIn(session){
   if(curProfile.is_admin){ document.getElementById('adminOpenBtn').style.display=''; }
   toast('欢迎，'+curProfile.username);
   await loadSupabaseLibrary();
+}
+/* 游客本机模式：跳过登录，直接用本地 IndexedDB（不碰 Supabase） */
+function enterGuestMode(){
+  guestMode=true; curUser=null; curProfile=null;
+  localStorage.setItem('yuyin_guest','1');
+  document.getElementById('authGate').classList.add('hide');
+  document.getElementById('userBadge').style.display='none';
+  document.getElementById('logoutBtn').style.display='none';
+  document.getElementById('adminOpenBtn').style.display='none';
+  document.getElementById('guestLoginBtn').style.display='';
+  toast('游客模式：数据仅保存在本机浏览器');
+}
+/* 游客模式下，之后想登录账号用 */
+function reopenGate(){
+  guestMode=false; localStorage.removeItem('yuyin_guest');
+  document.getElementById('guestLoginBtn').style.display='none';
+  document.getElementById('authGate').classList.remove('hide');
 }
 function openAdmin(){ if(curProfile&&curProfile.is_admin){ loadAdminUsers(); document.getElementById('adminModal').classList.add('show'); } }
 let adminUsers=[];
@@ -1576,9 +1608,11 @@ async function doLogout(){
   toast('已退出登录');
 }
 
-/* 启动：未配置则直接使用（无账号系统）；已配置则检查登录态 */
+/* 启动：未配置则直接使用（无账号系统）；已配置则检查登录态；游客模式则直接进入 */
 if(AUTH_OFF){
   document.getElementById('authGate').classList.add('hide');
+} else if(localStorage.getItem('yuyin_guest')==='1'){
+  enterGuestMode();
 } else {
   sb.auth.getSession().then(({data})=>{
     if(data.session) onLoggedIn(data.session);
