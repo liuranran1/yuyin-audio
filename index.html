@@ -509,6 +509,31 @@
   </div>
 </div>
 
+<!-- 管理员编辑用户 -->
+<div class="modal-mask" id="adminEditModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head"><h4>编辑用户</h4><button onclick="closeModal('adminEditModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:13px;color:#5f7a92;margin-bottom:6px">用户名</label>
+        <input id="aeUsername" placeholder="修改用户名（留空=不修改）" style="width:100%;box-sizing:border-box;border:1px solid #dce6ef;border-radius:10px;padding:9px 12px;font-size:14px;background:#f8fbfd;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:13px;color:#5f7a92;margin-bottom:6px">重置密码（至少 6 位，留空=不修改）</label>
+        <input id="aePassword" type="password" placeholder="留空则不修改" style="width:100%;box-sizing:border-box;border:1px solid #dce6ef;border-radius:10px;padding:9px 12px;font-size:14px;background:#f8fbfd;outline:none">
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:13px;color:#5f7a92;margin-bottom:6px">找回数字（用于改密码，留空=不修改）</label>
+        <input id="aeRecovery" placeholder="留空则不修改" style="width:100%;box-sizing:border-box;border:1px solid #dce6ef;border-radius:10px;padding:9px 12px;font-size:14px;background:#f8fbfd;outline:none">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn ghost" onclick="closeModal('adminEditModal')">取消</button>
+        <button class="btn primary" onclick="adminSaveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 自动识别进度 -->
 <div class="modal-mask" id="recogModal">
   <div class="modal" style="max-width:420px">
@@ -1450,11 +1475,13 @@ async function onLoggedIn(session){
   await loadSupabaseLibrary();
 }
 function openAdmin(){ if(curProfile&&curProfile.is_admin){ loadAdminUsers(); document.getElementById('adminModal').classList.add('show'); } }
+let adminUsers=[];
 async function loadAdminUsers(){
   const q=document.getElementById('adminFilter').value.trim();
   const { data, error } = await sb.rpc('admin_list_users');
   if(error){ document.getElementById('adminStat').textContent='加载失败：'+error.message; return; }
-  let list=data||[];
+  adminUsers=data||[];
+  let list=adminUsers;
   if(q){ list=list.filter(u=>(u.username||'').indexOf(q)>=0||(u.user_number||'').indexOf(q)>=0); }
   document.getElementById('adminStat').textContent='共 '+list.length+' 位用户'+(curProfile.is_admin?'（你是管理员）':'');
   const tb=document.getElementById('adminTable');
@@ -1475,19 +1502,28 @@ async function loadAdminUsers(){
     }).join('');
 }
 async function adminEdit(id){
-  const username=prompt('修改用户名（留空则不修改）：');
-  if(username===null) return;
-  const np=prompt('重置密码（留空则不修改，至少6位）：');
-  if(np!==null && np.trim()!=='' && np.trim().length<6){ alert('密码至少6位'); return; }
-  const rec=prompt('修改找回数字（留空则不修改）：');
+  const u=(adminUsers||[]).find(x=>x.id===id);
+  if(!u){ alert('用户不存在'); return; }
+  document.getElementById('aeUsername').value=u.username||'';
+  document.getElementById('aePassword').value='';
+  document.getElementById('aeRecovery').value=u.recovery_number||'';
+  document.getElementById('adminEditModal').dataset.uid=id;
+  document.getElementById('adminEditModal').classList.add('show');
+}
+async function adminSaveEdit(){
+  const id=document.getElementById('adminEditModal').dataset.uid;
+  const un=document.getElementById('aeUsername').value.trim();
+  const pw=document.getElementById('aePassword').value;
+  const rec=document.getElementById('aeRecovery').value.trim();
+  if(pw && pw.trim().length<6){ alert('密码至少6位'); return; }
   const { error } = await sb.rpc('admin_update_user',{
     p_id:id,
-    p_username: (username&&username.trim())?username.trim():null,
-    p_password: (np&&np.trim())?np.trim():null,
-    p_recovery: (rec&&rec.trim())?rec.trim():null
+    p_username: un?un:null,
+    p_password: (pw&&pw.trim())?pw.trim():null,
+    p_recovery: rec?rec:null
   });
   if(error){ alert('修改失败：'+error.message); return; }
-  toast('已保存'); loadAdminUsers();
+  closeModal('adminEditModal'); toast('已保存'); loadAdminUsers();
 }
 async function adminToggleAdmin(id, cur){
   const { error } = await sb.rpc('admin_update_user',{ p_id:id, p_is_admin:!cur });
