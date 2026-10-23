@@ -1435,7 +1435,7 @@ if(!user){ setAuthMsg('请填写用户名'); return; }
     password: pwd,
     options: { data: { username: user, recovery_number: rec } }
   });
-  if(error){ setAuthMsg('注册失败：'+error.message); return; }
+  if(error){ setAuthMsg(regErrMsg(error.message)); return; }
   const id = data.user && data.user.id;
   let num='';
   if(id){ const p=await sb.from('profiles').select('user_number').eq('id',id).single(); if(p.data) num=p.data.user_number; }
@@ -1452,11 +1452,28 @@ async function doLogin(){
   try {
     if(/^\d{6}$/.test(acc)){ const r=await sb.rpc('lookup_email_by_number',{pnum:acc}); email=r.data; }
     else { const r=await sb.rpc('lookup_email_by_username',{uname:acc}); email=r.data; }
-  } catch(e){ setAuthMsg('查询账号失败'); return; }
-  if(!email){ setAuthMsg('账号不存在'); return; }
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
-  if(error){ setAuthMsg('登录失败：'+(error.message||'账号或密码错误')); return; }
-  onLoggedIn(data.session);
+  } catch(e){ setAuthMsg('查询账号失败：连不上服务器，请确认已开启 VPN 后重试'); return; }
+  if(!email){ setAuthMsg('账号不存在（请检查用户号/用户名）'); return; }
+  let res;
+  try {
+    res = await sb.auth.signInWithPassword({ email, password: pwd });
+  } catch(e){ setAuthMsg('登录失败：连不上服务器，请确认已开启 VPN 后重试'); return; }
+  if(res.error){ setAuthMsg(loginErrMsg(res.error.message)); return; }
+  onLoggedIn(res.data.session);
+}
+function loginErrMsg(m){
+  if(!m) return '登录失败';
+  if(m.indexOf('not confirmed')>=0 || m.indexOf('Confirm')>=0) return '账号邮箱未验证：请在 Supabase 后台 Authentication→Sign In/Providers→Email 关闭 Confirm email，再重新登录（或先用游客模式）';
+  if(m.indexOf('Invalid login credentials')>=0) return '用户号/用户名或密码错误';
+  if(m.toLowerCase().indexOf('fetch')>=0 || m.indexOf('network')>=0 || m.indexOf('timeout')>=0) return '无法连接服务器，请确认已开启 VPN 后重试';
+  return '登录失败：'+m;
+}
+function regErrMsg(m){
+  if(!m) return '注册失败';
+  if(m.indexOf('User already registered')>=0) return '该账号已注册，请直接登录';
+  if(m.toLowerCase().indexOf('fetch')>=0 || m.indexOf('network')>=0) return '无法连接服务器，请确认已开启 VPN 后重试';
+  if(m.indexOf('confirm')>=0 || m.indexOf('Signup')>=0) return '注册受阻：请先在 Supabase 后台关闭 Email Confirm（Authentication→Sign In/Providers→Email）';
+  return '注册失败：'+m;
 }
 async function doReset(){
   if(AUTH_OFF){ setAuthMsg('未配置 Supabase'); return; }
